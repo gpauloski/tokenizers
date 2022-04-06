@@ -14,7 +14,7 @@ pub struct Decoder {
 }
 
 impl tk::Decoder for Decoder {
-    fn decode(&self, tokens: Vec<String>) -> tk::Result<Vec<String>> {
+    fn decode(&self, tokens: Vec<String>) -> tk::Result<String> {
         self.decoder
             .as_ref()
             .ok_or("Uninitialized Decoder")?

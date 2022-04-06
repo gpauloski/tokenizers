@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
+use std::sync::mpsc;
 
 // A token and a score
 type SentencePiece = (String, f64);
@@ -63,6 +64,12 @@ pub struct UnigramTrainer {
     seed_size: usize,
     #[builder(default = "HashMap::new()")]
     words: HashMap<String, u32>,
+}
+
+pub enum MessageEStep {
+    Ntokens(u32),
+    Objs(f64),
+    Expected((usize, f64)),
 }
 
 impl Default for UnigramTrainer {
@@ -257,54 +264,86 @@ impl UnigramTrainer {
         let mut always_keep = vec![true; pieces.len()];
         let mut alternatives: Vec<Vec<usize>> = vec![Vec::new(); pieces.len()];
 
-        let bos_id = pieces.len() + 1;
-        let eos_id = pieces.len() + 2;
-
-        // First, segments the current sentencepieces to know
-        // how each sentencepiece is resegmented if this sentencepiece is removed
-        // from the vocabulary.
-        // To do so, we take the second best segmentation of sentencepiece[i].
-        // alternatives[i] stores the sequence of second best sentencepieces.
-        for (id, (token, _score)) in pieces.iter().enumerate() {
-            // Always keep unk.
-            if id == 0 {
-                always_keep[id] = false;
-                continue;
-            }
-            let mut lattice = Lattice::from(token, bos_id, eos_id);
-            model.populate_nodes(&mut lattice);
-
-            let nbests = lattice.nbest(2);
-            if nbests.len() == 1 {
-                always_keep[id] = true;
-            } else if nbests[0].len() >= 2 {
-                always_keep[id] = false;
-            } else if nbests[0].len() == 1 {
-                always_keep[id] = true;
-                for node in &nbests[1] {
-                    let alt_id = node.borrow().id;
-                    alternatives[id].push(alt_id);
-                }
-            }
-        }
-
-        // Second, segments all sentences to compute likelihood
-        // with a unigram language model. inverted[i] stores
-        // the set of sentence index where the sentencepieces[i] appears.
         let mut vsum = 0.0;
         let mut freq: Vec<f64> = vec![0.0; pieces.len()];
         let mut inverted: Vec<Vec<usize>> = vec![Vec::new(); pieces.len()];
-        // TODO reparallelize this
-        for (i, (sentence, count)) in sentences.iter().enumerate() {
-            let mut lattice = Lattice::from(sentence, bos_id, eos_id);
-            model.populate_nodes(&mut lattice);
-            vsum += *count as f64;
-            for node_ref in lattice.viterbi() {
-                let id = node_ref.borrow().id;
-                freq[id] += *count as f64;
-                inverted[id].push(i);
-            }
+
+        let bos_id = pieces.len() + 1;
+        let eos_id = pieces.len() + 2;
+
+        let (tx, rx) = mpsc::channel();
+
+        let tx2 = tx.clone();
+
+        enum Message {
+            AlwaysKeep((usize, bool)),
+            Alternatives((usize, usize)),
+            Vsum(f64),
+            Freq((usize, f64)),
+            Inverted((usize, usize)),
         }
+
+        rayon::scope(|s| {
+            // First, segments the current sentencepieces to know
+            // how each sentencepiece is resegmented if this sentencepiece is removed
+            // from the vocabulary.
+            // To do so, we take the second best segmentation of sentencepiece[i].
+            // alternatives[i] stores the sequence of second best sentencepieces.
+            s.spawn(|_| {
+                pieces.maybe_par_iter().enumerate().for_each_with(
+                    tx,
+                    |tx, (id, (token, _score))| {
+                        // Always keep unk.
+                        if id == 0 {
+                            tx.send(Message::AlwaysKeep((id, false))).unwrap();
+                        } else {
+                            let mut lattice = Lattice::from(token, bos_id, eos_id);
+                            model.populate_nodes(&mut lattice);
+
+                            let nbests = lattice.nbest(2);
+                            if nbests.len() == 1 {
+                                tx.send(Message::AlwaysKeep((id, true))).unwrap();
+                            } else if nbests[0].len() >= 2 {
+                                tx.send(Message::AlwaysKeep((id, false))).unwrap();
+                            } else if nbests[0].len() == 1 {
+                                tx.send(Message::AlwaysKeep((id, true))).unwrap();
+                                for node in &nbests[1] {
+                                    let alt_id = node.borrow().id;
+                                    tx.send(Message::Alternatives((id, alt_id))).unwrap();
+                                }
+                            }
+                        }
+                    },
+                );
+            });
+            // Second, segments all sentences to compute likelihood
+            // with a unigram language model. inverted[i] stores
+            // the set of sentence index where the sentencepieces[i] appears.
+            s.spawn(|_| {
+                sentences.maybe_par_iter().enumerate().for_each_with(
+                    tx2,
+                    |tx, (i, (sentence, count))| {
+                        let mut lattice = Lattice::from(sentence, bos_id, eos_id);
+                        model.populate_nodes(&mut lattice);
+                        let count = *count as f64;
+                        tx.send(Message::Vsum(count)).unwrap();
+                        for node_ref in lattice.viterbi() {
+                            let id = node_ref.borrow().id;
+                            tx.send(Message::Freq((id, count))).unwrap();
+                            tx.send(Message::Inverted((id, i))).unwrap();
+                        }
+                    },
+                );
+            });
+        });
+
+        rx.iter().for_each(|msg| match msg {
+            Message::AlwaysKeep((id, val)) => always_keep[id] = val,
+            Message::Alternatives((id, val)) => alternatives[id].push(val),
+            Message::Vsum(val) => vsum += val,
+            Message::Freq((id, val)) => freq[id] = val,
+            Message::Inverted((id, val)) => inverted[id].push(val),
+        });
 
         let sum: f64 = freq.iter().sum();
         let logsum = sum.ln();
@@ -317,53 +356,71 @@ impl UnigramTrainer {
         // Since the exact computation of loss is difficult, we compute the
         // loss approximately by assuming that all sentencepiece[i] in the sentences
         // are replaced with alternatives[i] when sentencepiece[i] is removed.
-        for (id, (token, score)) in pieces.iter().enumerate() {
-            if id == 0 {
-                continue;
-            }
-            if freq[id] == 0.0 && !always_keep[id] {
-                // not found in Viterbi path. Can remove this entry safely.
-                continue;
-            } else if alternatives[id].is_empty() {
-                // no alternatives. Keeps this entry.
-                new_pieces.push((token.to_string(), *score));
-            } else {
-                let mut f = 0.0; // the frequency of pieces[i];
-
-                for n in &inverted[id] {
-                    let score = sentences[*n].1 as f64;
-                    f += score;
-                }
-                // TODO: Temporary hack to avoid Nans.
-                if f == 0.0 || f.is_nan() {
-                    // new_pieces.push((token.to_string(), *score));
-                    continue;
-                }
-                f /= vsum; // normalizes by all sentence frequency.
-                let logprob_sp = freq[id].ln() - logsum;
-
-                // After removing the sentencepiece[i], its frequency freq[i] is
-                // re-assigned to alternatives.
-                // new_sum = current_sum - freq[i] + freq[i] * alternatives.size()
-                //         = current_sum + freq[i] (alternatives - 1)
-
-                let logsum_alt = (sum + freq[id] * (alternatives.len() - 1) as f64).ln();
-
-                // The frequencies of altenatives are increased by freq[i].
-                let mut logprob_alt = 0.0;
-                for n in &alternatives[id] {
-                    logprob_alt += (freq[*n] + freq[id]).ln() - logsum_alt;
-                }
-
-                // loss: the diff of likelihood after removing the sentencepieces[i].
-                let loss = f * (logprob_sp - logprob_alt);
-                if loss.is_nan() {
-                    panic!("");
-                }
-
-                candidates.push((id, loss));
-            }
+        enum MessageLMReduction {
+            NewPiece(SentencePiece),
+            Candidate((usize, f64)),
         }
+        let (tx, rx) = mpsc::channel();
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                pieces.maybe_par_iter().enumerate().for_each_with(
+                    tx,
+                    |tx, (id, (token, score))| {
+                        if id == 0 {
+                            return;
+                        }
+                        if freq[id] == 0.0 && !always_keep[id] {
+                            // not found in Viterbi path. Can remove this entry safely.
+                        } else if alternatives[id].is_empty() {
+                            // no alternatives. Keeps this entry.
+                            tx.send(MessageLMReduction::NewPiece((token.to_string(), *score)))
+                                .unwrap();
+                        } else {
+                            let mut f = 0.0; // the frequency of pieces[i];
+
+                            for n in &inverted[id] {
+                                let score = sentences[*n].1 as f64;
+                                f += score;
+                            }
+                            // TODO: Temporary hack to avoid Nans.
+                            if f == 0.0 || f.is_nan() {
+                                // new_pieces.push((token.to_string(), *score));
+                                return;
+                            }
+                            f /= vsum; // normalizes by all sentence frequency.
+                            let logprob_sp = freq[id].ln() - logsum;
+
+                            // After removing the sentencepiece[i], its frequency freq[i] is
+                            // re-assigned to alternatives.
+                            // new_sum = current_sum - freq[i] + freq[i] * alternatives.size()
+                            //         = current_sum + freq[i] (alternatives - 1)
+
+                            let logsum_alt =
+                                (sum + freq[id] * (alternatives.len() - 1) as f64).ln();
+
+                            // The frequencies of altenatives are increased by freq[i].
+                            let mut logprob_alt = 0.0;
+                            for n in &alternatives[id] {
+                                logprob_alt += (freq[*n] + freq[id]).ln() - logsum_alt;
+                            }
+
+                            // loss: the diff of likelihood after removing the sentencepieces[i].
+                            let loss = f * (logprob_sp - logprob_alt);
+                            if loss.is_nan() {
+                                panic!("");
+                            }
+                            tx.send(MessageLMReduction::Candidate((id, loss))).unwrap();
+                        }
+                    },
+                );
+            });
+        });
+
+        rx.iter().for_each(|msg| match msg {
+            MessageLMReduction::NewPiece(val) => new_pieces.push(val),
+            MessageLMReduction::Candidate((id, val)) => candidates.push((id, val)),
+        });
+
         let desired_vocab_size: usize = (self.vocab_size as usize * 11) / 10; // * 1.1
         let pruned_size: usize = ((pieces.len() as f64) * self.shrinking_factor) as usize;
         let pruned_size = desired_vocab_size.max(pruned_size);
@@ -404,18 +461,32 @@ impl UnigramTrainer {
 
         let all_sentence_freq: u32 = sentences.iter().map(|(_a, b)| *b).sum();
 
-        // TODO reparallelize this.
-        for (string, freq) in sentences {
-            let mut lattice = Lattice::from(string, model.bos_id, model.eos_id);
-            model.populate_nodes(&mut lattice);
-            let z: f64 = lattice.populate_marginal(*freq as f64, &mut expected);
-            ntokens += lattice.viterbi().len() as u32;
-            if z.is_nan() {
-                panic!("likelihood is NAN. Input sentence may be too long.");
-            }
+        let (tx, rx) = mpsc::channel();
 
-            objs -= z / (all_sentence_freq as f64);
-        }
+        rayon::scope(|s| {
+            s.spawn(|_| {
+                sentences
+                    .maybe_par_iter()
+                    .for_each_with(tx, |tx, (string, freq)| {
+                        let mut lattice = Lattice::from(string, model.bos_id, model.eos_id);
+                        model.populate_nodes(&mut lattice);
+                        let z: f64 = lattice.populate_marginal(*freq as f64, tx);
+                        tx.send(MessageEStep::Ntokens(lattice.viterbi().len() as u32))
+                            .unwrap();
+                        if z.is_nan() {
+                            panic!("likelihood is NAN. Input sentence may be too long.");
+                        }
+                        tx.send(MessageEStep::Objs(z / (all_sentence_freq as f64)))
+                            .unwrap();
+                    });
+            });
+        });
+
+        rx.iter().for_each(|msg| match msg {
+            MessageEStep::Ntokens(val) => ntokens += val,
+            MessageEStep::Objs(val) => objs -= val,
+            MessageEStep::Expected((id, val)) => expected[id] += val,
+        });
 
         (objs, ntokens, expected)
     }

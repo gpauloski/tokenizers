@@ -1,9 +1,11 @@
+use crate::models::unigram::trainer::MessageEStep;
 use rand::distributions::WeightedIndex;
 use rand::prelude::*;
 use std::cell::RefCell;
 use std::cmp::{min, Ordering};
 use std::collections::BinaryHeap;
 use std::rc::Rc;
+use std::sync::mpsc;
 
 type NodeRef = Rc<RefCell<Node>>;
 type HypothesisRef = Rc<RefCell<Hypothesis>>;
@@ -328,7 +330,7 @@ impl<'a> Lattice<'a> {
         self.sentence
     }
 
-    pub fn populate_marginal(&self, freq: f64, expected: &mut [f64]) -> f64 {
+    pub fn populate_marginal(&self, freq: f64, tx: &mut mpsc::Sender<MessageEStep>) -> f64 {
         let len = self.len();
         let n_nodes = self.nodes.len();
         let mut alpha = vec![0.0; n_nodes];
@@ -371,7 +373,7 @@ impl<'a> Lattice<'a> {
                 let b = beta[node_id];
                 let total = a + node.borrow().score + b - z;
                 let update = freq * total.exp();
-                expected[id] += update;
+                tx.send(MessageEStep::Expected((id, update))).unwrap();
             }
         }
         freq * z
@@ -654,7 +656,15 @@ mod tests {
         let p4 = 2.0_f64.exp();
         let z = p1 + p2 + p3 + p4;
 
-        let log_z = lattice.populate_marginal(1.0, &mut probs);
+        let (mut tx, rx) = mpsc::channel();
+        let log_z = lattice.populate_marginal(1.0, &mut tx);
+        drop(tx);
+
+        rx.iter().for_each(|msg| {
+            if let MessageEStep::Expected((id, val)) = msg {
+                probs[id] += val;
+            }
+        });
 
         assert_approx_eq!(log_z, z.ln(), 0.001);
         assert_approx_eq!(probs[0], 0.0, 0.001);

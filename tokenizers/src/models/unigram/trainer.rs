@@ -12,7 +12,7 @@ use std::convert::TryInto;
 type SentencePiece = (String, f64);
 
 // A full sentence or word + it's count within the dataset
-type Sentence = (String, u32);
+type Sentence = (String, u64);
 
 fn digamma(mut x: f64) -> f64 {
     let mut result = 0.0;
@@ -44,9 +44,9 @@ pub struct UnigramTrainer {
     #[builder(default = "true")]
     pub show_progress: bool,
     #[builder(default = "8000")]
-    pub vocab_size: u32,
+    pub vocab_size: u64,
     #[builder(default = "2")]
-    pub n_sub_iterations: u32,
+    pub n_sub_iterations: u64,
     #[builder(default = "0.75")]
     pub shrinking_factor: f64,
     #[builder(default = "vec![]")]
@@ -62,7 +62,7 @@ pub struct UnigramTrainer {
     #[builder(default = "1_000_000")]
     seed_size: usize,
     #[builder(default = "HashMap::new()")]
-    words: HashMap<String, u32>,
+    words: HashMap<String, u64>,
 }
 
 impl Default for UnigramTrainer {
@@ -194,7 +194,7 @@ impl UnigramTrainer {
             .sum::<usize>()
             + sentences.len();
         let mut flat_string = String::with_capacity(total);
-        let mut all_chars: HashMap<char, u32> = HashMap::new();
+        let mut all_chars: HashMap<char, u64> = HashMap::new();
         let c_sentence_boundary = '\0';
         let k_sentence_boundary = '\0'.to_string();
         for (string, n) in sentences {
@@ -239,7 +239,7 @@ impl UnigramTrainer {
 
         // Fill seed_sentencepieces
         for (count, character) in sall_chars {
-            seed_sentencepieces.push((character.to_string(), count.into()));
+            seed_sentencepieces.push((character.to_string(), count as f64));
         }
 
         // sort by decreasing score
@@ -405,19 +405,19 @@ impl UnigramTrainer {
         }
     }
 
-    fn run_e_step(&self, model: &Unigram, sentences: &[Sentence]) -> (f64, u32, Vec<f64>) {
+    fn run_e_step(&self, model: &Unigram, sentences: &[Sentence]) -> (f64, u64, Vec<f64>) {
         let mut expected: Vec<f64> = vec![0.0; model.len()];
         let mut objs: f64 = 0.0;
-        let mut ntokens: u32 = 0;
+        let mut ntokens: u64 = 0;
 
-        let all_sentence_freq: u32 = sentences.iter().map(|(_a, b)| *b).sum();
+        let all_sentence_freq: u64 = sentences.iter().map(|(_a, b)| *b).sum();
 
         // TODO reparallelize this.
         for (string, freq) in sentences {
             let mut lattice = Lattice::from(string, model.bos_id, model.eos_id);
             model.populate_nodes(&mut lattice);
             let z: f64 = lattice.populate_marginal(*freq as f64, &mut expected);
-            ntokens += lattice.viterbi().len() as u32;
+            ntokens += lattice.viterbi().len() as u64;
             if z.is_nan() {
                 panic!("likelihood is NAN. Input sentence may be too long.");
             }
@@ -565,7 +565,7 @@ impl Trainer for UnigramTrainer {
         S: AsRef<str> + Send,
         F: Fn(&str) -> Result<Vec<String>> + Sync,
     {
-        let words: Result<HashMap<String, u32>> = iterator
+        let words: Result<HashMap<String, u64>> = iterator
             .maybe_par_bridge()
             .map(|sequence| {
                 let words = process(sequence.as_ref())?;

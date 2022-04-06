@@ -165,7 +165,7 @@ declare_types! {
                 .encoding.as_ref().expect("Uninitialized Encoding")
                 .get_overflowing()
                 .clone();
-            let js_overflowings = JsArray::new(&mut cx, overflowings.len() as u32);
+            let js_overflowings = JsArray::new(&mut cx, overflowings.len() as u64);
 
             for (index, overflowing) in overflowings.iter().enumerate() {
                 let mut js_overflowing = JsEncoding::new::<_, JsEncoding, _>(&mut cx, vec![])?;
@@ -174,7 +174,7 @@ declare_types! {
                 let guard = cx.lock();
                 js_overflowing.borrow_mut(&guard).encoding = Some(overflowing.clone());
 
-                js_overflowings.set(&mut cx, index as u32, js_overflowing)?;
+                js_overflowings.set(&mut cx, index as u64, js_overflowing)?;
             }
 
             Ok(js_overflowings.upcast())
@@ -183,7 +183,7 @@ declare_types! {
         method wordToTokens(mut cx) {
             // wordToTokens(word: number, seqId: number = 0): [number, number] | undefined
 
-            let word = cx.extract::<u32>(0)?;
+            let word = cx.extract::<u64>(0)?;
             let seq_id = cx.extract_opt::<usize>(1)?.unwrap_or(0);
 
             let this = cx.this();
@@ -203,7 +203,7 @@ declare_types! {
         method wordToChars(mut cx) {
             // wordToChars(word: number, seqId: number = 0): [number, number] | undefined
 
-            let word = cx.extract::<u32>(0)?;
+            let word = cx.extract::<u64>(0)?;
             let seq_id = cx.extract_opt::<usize>(1)?.unwrap_or(0);
 
             let this = cx.this();

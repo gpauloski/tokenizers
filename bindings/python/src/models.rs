@@ -52,15 +52,15 @@ impl Model for PyModel {
         self.model.read().unwrap().tokenize(tokens)
     }
 
-    fn token_to_id(&self, token: &str) -> Option<u32> {
+    fn token_to_id(&self, token: &str) -> Option<u64> {
         self.model.read().unwrap().token_to_id(token)
     }
 
-    fn id_to_token(&self, id: u32) -> Option<String> {
+    fn id_to_token(&self, id: u64) -> Option<String> {
         self.model.read().unwrap().id_to_token(id)
     }
 
-    fn get_vocab(&self) -> HashMap<String, u32> {
+    fn get_vocab(&self) -> HashMap<String, u64> {
         self.model.read().unwrap().get_vocab()
     }
 
@@ -150,7 +150,7 @@ impl PyModel {
     /// Returns:
     ///     :obj:`int`: The ID associated to the token
     #[text_signature = "(self, tokens)"]
-    fn token_to_id(&self, token: &str) -> Option<u32> {
+    fn token_to_id(&self, token: &str) -> Option<u64> {
         self.model.read().unwrap().token_to_id(token)
     }
 
@@ -163,7 +163,7 @@ impl PyModel {
     /// Returns:
     ///     :obj:`str`: The token associated to the ID
     #[text_signature = "(self, id)"]
-    fn id_to_token(&self, id: u32) -> Option<String> {
+    fn id_to_token(&self, id: u64) -> Option<String> {
         self.model.read().unwrap().id_to_token(id)
     }
 

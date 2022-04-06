@@ -41,10 +41,10 @@ declare_types! {
                 .decode(tokens)
                 .map_err(|e| Error(format!("{}", e)))?;
 
-            let decoded = JsArray::new(&mut cx, output.len() as u32);
+            let decoded = JsArray::new(&mut cx, output.len() as u64);
             for (i, token) in output.into_iter().enumerate() {
                 let js_token = cx.string(token);
-                decoded.set(&mut cx, i as u32, js_token)?;
+                decoded.set(&mut cx, i as u64, js_token)?;
             }
 
             Ok(decoded.upcast())

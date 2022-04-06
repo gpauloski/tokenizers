@@ -46,8 +46,8 @@ declare_types! {
 
 /// bert_processing(sep: [String, number], cls: [String, number])
 fn bert_processing(mut cx: FunctionContext) -> JsResult<JsPostProcessor> {
-    let sep = cx.extract::<(String, u32)>(0)?;
-    let cls = cx.extract::<(String, u32)>(1)?;
+    let sep = cx.extract::<(String, u64)>(0)?;
+    let cls = cx.extract::<(String, u64)>(1)?;
 
     let mut processor = JsPostProcessor::new::<_, JsPostProcessor, _>(&mut cx, vec![])?;
     let guard = cx.lock();
@@ -64,8 +64,8 @@ fn bert_processing(mut cx: FunctionContext) -> JsResult<JsPostProcessor> {
 ///   addPrefixSpace: boolean = true
 /// )
 fn roberta_processing(mut cx: FunctionContext) -> JsResult<JsPostProcessor> {
-    let sep = cx.extract::<(String, u32)>(0)?;
-    let cls = cx.extract::<(String, u32)>(1)?;
+    let sep = cx.extract::<(String, u64)>(0)?;
+    let cls = cx.extract::<(String, u64)>(1)?;
 
     let mut processor = tk::processors::roberta::RobertaProcessing::new(sep, cls);
     if let Some(trim_offsets) = cx.extract_opt::<bool>(2)? {
@@ -103,7 +103,7 @@ fn bytelevel(mut cx: FunctionContext) -> JsResult<JsPostProcessor> {
 fn template_processing(mut cx: FunctionContext) -> JsResult<JsPostProcessor> {
     let mut i = 1;
     let special_tokens = loop {
-        if let Ok(Some(spe)) = cx.extract_opt::<Vec<(String, u32)>>(i) {
+        if let Ok(Some(spe)) = cx.extract_opt::<Vec<(String, u64)>>(i) {
             break spe;
         }
         i += 1;

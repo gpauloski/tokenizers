@@ -121,7 +121,7 @@ impl PyEncoding {
     /// Returns:
     ///     :obj:`List[int]`: The list of IDs
     #[getter]
-    fn get_ids(&self) -> Vec<u32> {
+    fn get_ids(&self) -> Vec<u64> {
         self.encoding.get_ids().to_vec()
     }
 
@@ -153,7 +153,7 @@ impl PyEncoding {
     /// Returns:
     ///     A :obj:`List` of :obj:`Optional[int]`: A list of optional word index.
     #[getter]
-    fn get_words(&self) -> PyResult<Vec<Option<u32>>> {
+    fn get_words(&self) -> PyResult<Vec<Option<u64>>> {
         deprecation_warning(
             "0.9.4",
             "Encoding.words is deprecated, please use Encoding.word_ids instead.",
@@ -174,7 +174,7 @@ impl PyEncoding {
     /// Returns:
     ///     A :obj:`List` of :obj:`Optional[int]`: A list of optional word index.
     #[getter]
-    fn get_word_ids(&self) -> Vec<Option<u32>> {
+    fn get_word_ids(&self) -> Vec<Option<u64>> {
         self.encoding.get_word_ids().to_vec()
     }
 
@@ -199,7 +199,7 @@ impl PyEncoding {
     /// Returns:
     ///     :obj:`List[int]`: The list of type ids
     #[getter]
-    fn get_type_ids(&self) -> Vec<u32> {
+    fn get_type_ids(&self) -> Vec<u64> {
         self.encoding.get_type_ids().to_vec()
     }
 
@@ -222,7 +222,7 @@ impl PyEncoding {
     /// Returns:
     ///     :obj:`List[int]`: The special tokens mask
     #[getter]
-    fn get_special_tokens_mask(&self) -> Vec<u32> {
+    fn get_special_tokens_mask(&self) -> Vec<u64> {
         self.encoding.get_special_tokens_mask().to_vec()
     }
 
@@ -235,7 +235,7 @@ impl PyEncoding {
     /// Returns:
     ///    :obj:`List[int]`: The attention mask
     #[getter]
-    fn get_attention_mask(&self) -> Vec<u32> {
+    fn get_attention_mask(&self) -> Vec<u64> {
         self.encoding.get_attention_mask().to_vec()
     }
 
@@ -271,7 +271,7 @@ impl PyEncoding {
     ///     :obj:`Tuple[int, int]`: The range of tokens: :obj:`(first, last + 1)`
     #[args(sequence_index = 0)]
     #[text_signature = "(self, word_index, sequence_index=0)"]
-    fn word_to_tokens(&self, word_index: u32, sequence_index: usize) -> Option<(usize, usize)> {
+    fn word_to_tokens(&self, word_index: u64, sequence_index: usize) -> Option<(usize, usize)> {
         self.encoding.word_to_tokens(word_index, sequence_index)
     }
 
@@ -287,7 +287,7 @@ impl PyEncoding {
     ///     :obj:`Tuple[int, int]`: The range of characters (span) :obj:`(first, last + 1)`
     #[args(sequence_index = 0)]
     #[text_signature = "(self, word_index, sequence_index=0)"]
-    fn word_to_chars(&self, word_index: u32, sequence_index: usize) -> Option<Offsets> {
+    fn word_to_chars(&self, word_index: u64, sequence_index: usize) -> Option<Offsets> {
         self.encoding.word_to_chars(word_index, sequence_index)
     }
 
@@ -338,7 +338,7 @@ impl PyEncoding {
     /// Returns:
     ///     :obj:`int`: The index of the word in the relevant input sequence.
     #[text_signature = "(self, token_index)"]
-    fn token_to_word(&self, token_index: usize) -> Option<u32> {
+    fn token_to_word(&self, token_index: usize) -> Option<u64> {
         let (_, word_idx) = self.encoding.token_to_word(token_index)?;
         Some(word_idx)
     }
@@ -371,7 +371,7 @@ impl PyEncoding {
     ///     :obj:`int`: The index of the word that contains this char in the input sequence
     #[args(sequence_index = 0)]
     #[text_signature = "(self, char_pos, sequence_index=0)"]
-    fn char_to_word(&self, char_pos: usize, sequence_index: usize) -> Option<u32> {
+    fn char_to_word(&self, char_pos: usize, sequence_index: usize) -> Option<u64> {
         self.encoding.char_to_word(char_pos, sequence_index)
     }
 

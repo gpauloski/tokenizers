@@ -22,8 +22,8 @@ pub enum Error {
     MissingUnkToken,
 }
 
-type Vocab = HashMap<String, u32>;
-type VocabR = HashMap<u32, String>;
+type Vocab = HashMap<String, u64>;
+type VocabR = HashMap<u64, String>;
 
 struct Config {
     files: Option<String>,
@@ -165,7 +165,7 @@ impl WordPiece {
         let mut vocab = HashMap::new();
         for (index, line) in file.lines().enumerate() {
             let line = line?;
-            vocab.insert(line.trim_end().to_owned(), index as u32);
+            vocab.insert(line.trim_end().to_owned(), index as u64);
         }
 
         Ok(vocab)
@@ -192,7 +192,7 @@ impl WordPiece {
 impl Model for WordPiece {
     type Trainer = WordPieceTrainer;
 
-    fn get_vocab(&self) -> HashMap<String, u32> {
+    fn get_vocab(&self) -> HashMap<String, u64> {
         self.vocab.clone()
     }
 
@@ -261,11 +261,11 @@ impl Model for WordPiece {
         }
     }
 
-    fn token_to_id(&self, token: &str) -> Option<u32> {
+    fn token_to_id(&self, token: &str) -> Option<u64> {
         self.vocab.get(token).copied()
     }
 
-    fn id_to_token(&self, id: u32) -> Option<String> {
+    fn id_to_token(&self, id: u64) -> Option<String> {
         self.vocab_r.get(&id).cloned()
     }
 
@@ -280,7 +280,7 @@ impl Model for WordPiece {
             .iter()
             .collect();
         let mut vocab_file = File::create(&vocab_path)?;
-        let mut vocab: Vec<(&String, &u32)> = self.vocab.iter().collect();
+        let mut vocab: Vec<(&String, &u64)> = self.vocab.iter().collect();
         vocab.sort_unstable_by_key(|k| *k.1);
         vocab_file.write_all(
             &vocab

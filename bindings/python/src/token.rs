@@ -20,12 +20,12 @@ impl From<PyToken> for Token {
 #[pymethods]
 impl PyToken {
     #[new]
-    fn new(id: u32, value: String, offsets: (usize, usize)) -> PyToken {
+    fn new(id: u64, value: String, offsets: (usize, usize)) -> PyToken {
         Token::new(id, value, offsets).into()
     }
 
     #[getter]
-    fn get_id(&self) -> u32 {
+    fn get_id(&self) -> u64 {
         self.token.id
     }
 
@@ -39,7 +39,7 @@ impl PyToken {
         self.token.offsets
     }
 
-    fn as_tuple(&self) -> (u32, &str, (usize, usize)) {
+    fn as_tuple(&self) -> (u64, &str, (usize, usize)) {
         (self.token.id, &self.token.value, self.token.offsets)
     }
 }

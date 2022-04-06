@@ -48,15 +48,15 @@ impl tk::Model for Model {
             .tokenize(sequence)
     }
 
-    fn token_to_id(&self, token: &str) -> Option<u32> {
+    fn token_to_id(&self, token: &str) -> Option<u64> {
         self.model.as_ref()?.read().unwrap().token_to_id(token)
     }
 
-    fn id_to_token(&self, id: u32) -> Option<String> {
+    fn id_to_token(&self, id: u64) -> Option<String> {
         self.model.as_ref()?.read().unwrap().id_to_token(id)
     }
 
-    fn get_vocab(&self) -> HashMap<String, u32> {
+    fn get_vocab(&self) -> HashMap<String, u64> {
         self.model
             .as_ref()
             .expect("Uninitialized Model")
@@ -248,7 +248,7 @@ impl WordPieceOptions {
 ///   continuingSubwordPrefix?: "##",
 /// })
 fn wordpiece_init(mut cx: FunctionContext) -> JsResult<JsModel> {
-    let vocab = cx.extract::<HashMap<String, u32>>(0)?;
+    let vocab = cx.extract::<HashMap<String, u64>>(0)?;
     let options = cx.extract_opt::<WordPieceOptions>(1)?.unwrap_or_default();
 
     let mut builder = tk::models::wordpiece::WordPiece::builder().vocab(vocab);
@@ -315,7 +315,7 @@ impl WordLevelOptions {
 ///   unkToken?: String,
 /// }, callback)
 fn wordlevel_init(mut cx: FunctionContext) -> JsResult<JsModel> {
-    let vocab = cx.extract::<HashMap<String, u32>>(0)?;
+    let vocab = cx.extract::<HashMap<String, u64>>(0)?;
     let options = cx.extract_opt::<WordLevelOptions>(1)?.unwrap_or_default();
 
     let mut builder = tk::models::wordlevel::WordLevel::builder().vocab(vocab);

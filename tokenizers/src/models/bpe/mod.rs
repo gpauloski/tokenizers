@@ -6,7 +6,7 @@ mod serialization;
 pub mod trainer;
 mod word;
 
-type Pair = (u32, u32);
+type Pair = (u64, u64);
 
 /// Errors that can be encountered while using or constructing a `BPE` model.
 #[derive(thiserror::Error, Debug)]

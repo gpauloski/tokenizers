@@ -93,8 +93,8 @@ pub enum Sequence {
 ///
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Piece {
-    Sequence { id: Sequence, type_id: u32 },
-    SpecialToken { id: String, type_id: u32 },
+    Sequence { id: Sequence, type_id: u64 },
+    SpecialToken { id: String, type_id: u64 },
 }
 
 impl Piece {
@@ -117,7 +117,7 @@ impl Piece {
                     type_id: 0,
                 }),
                 n => {
-                    if let Ok(type_id) = n.parse::<u32>() {
+                    if let Ok(type_id) = n.parse::<u64>() {
                         Some(Self::Sequence {
                             id: Sequence::A,
                             type_id,
@@ -135,7 +135,7 @@ impl Piece {
         }
     }
 
-    fn with_type_id(self, type_id: u32) -> Self {
+    fn with_type_id(self, type_id: u64) -> Self {
         match self {
             Self::Sequence { id, .. } => Self::Sequence { id, type_id },
             Self::SpecialToken { id, .. } => Self::SpecialToken { id, type_id },
@@ -152,7 +152,7 @@ impl TryFrom<String> for Piece {
         let err = || format!("Cannot build Piece from string \"{}\"", s);
         match parts.as_slice() {
             [id, type_id] => {
-                let type_id: u32 = type_id.parse().map_err(|_| err())?;
+                let type_id: u64 = type_id.parse().map_err(|_| err())?;
                 let piece = Self::extract_id(id).ok_or_else(err)?;
                 Ok(piece.with_type_id(type_id))
             }
@@ -193,13 +193,13 @@ pub struct SpecialToken {
     /// A unique id used to identify this SpecialToken in the template
     id: String,
     /// The list of associated ids
-    ids: Vec<u32>,
+    ids: Vec<u64>,
     /// The list of associated tokens
     tokens: Vec<String>,
 }
 
-impl From<(String, u32)> for SpecialToken {
-    fn from(v: (String, u32)) -> Self {
+impl From<(String, u64)> for SpecialToken {
+    fn from(v: (String, u64)) -> Self {
         Self {
             id: v.0.clone(),
             ids: vec![v.1],
@@ -207,24 +207,24 @@ impl From<(String, u32)> for SpecialToken {
         }
     }
 }
-impl From<(&str, u32)> for SpecialToken {
-    fn from(v: (&str, u32)) -> Self {
+impl From<(&str, u64)> for SpecialToken {
+    fn from(v: (&str, u64)) -> Self {
         Self::from((v.0.to_owned(), v.1))
     }
 }
-impl From<(u32, String)> for SpecialToken {
-    fn from(v: (u32, String)) -> Self {
+impl From<(u64, String)> for SpecialToken {
+    fn from(v: (u64, String)) -> Self {
         Self::from((v.1, v.0))
     }
 }
-impl From<(u32, &str)> for SpecialToken {
-    fn from(v: (u32, &str)) -> Self {
+impl From<(u64, &str)> for SpecialToken {
+    fn from(v: (u64, &str)) -> Self {
         Self::from((v.1.to_owned(), v.0))
     }
 }
 
 impl SpecialToken {
-    pub fn new(id: String, ids: Vec<u32>, tokens: Vec<String>) -> Result<Self> {
+    pub fn new(id: String, ids: Vec<u64>, tokens: Vec<String>) -> Result<Self> {
         if ids.len() != tokens.len() {
             Err("SpecialToken: ids and tokens must be of the same length".into())
         } else {

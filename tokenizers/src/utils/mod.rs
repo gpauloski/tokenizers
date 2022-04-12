@@ -46,12 +46,12 @@ macro_rules! impl_enum_from (
 ///    impl_serde_type!{
 ///        #[derive(Debug)]
 ///        struct Point {
-///            x: i32,
+///            x: i64,
 ///            #[serde(default = "default_y")]
-///            y: i32,
+///            y: i64,
 ///        }
 ///    }
-///    fn default_y() -> i32 {
+///    fn default_y() -> i64 {
 ///        5
 ///    }
 ///
@@ -69,7 +69,7 @@ macro_rules! impl_enum_from (
 ///    impl_serde_type!{
 ///        #[derive(Debug)]
 ///        struct Point1D {
-///            x: i32,
+///            x: i64,
 ///        }
 ///    }
 ///

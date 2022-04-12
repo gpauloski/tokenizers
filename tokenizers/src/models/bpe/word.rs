@@ -103,8 +103,8 @@ impl Word {
         });
     }
 
-    pub(super) fn merge(&mut self, c1: u64, c2: u64, replacement: u64) -> Vec<(Pair, i32)> {
-        let mut changes: Vec<(Pair, i32)> = vec![];
+    pub(super) fn merge(&mut self, c1: u64, c2: u64, replacement: u64) -> Vec<(Pair, i64)> {
+        let mut changes: Vec<(Pair, i64)> = vec![];
         let mut i = 0;
         loop {
             if i >= self.symbols.len() {
@@ -299,10 +299,10 @@ mod tests {
         assert_eq!(
             changes,
             &[
-                ((1u64, 2u64), -1i32), // count for ('e', 'l') should be decreased by 1.
-                ((1u64, 4u64), 1i32),  // count for ('e', 'll') should be increased by 1.
-                ((2u64, 3u64), -1i32), // count for ('l', 'o') should be decreased by 1.
-                ((4u64, 3u64), 1i32),  // count for ('ll', 'o') should be increased by 1.
+                ((1u64, 2u64), -1i64), // count for ('e', 'l') should be decreased by 1.
+                ((1u64, 4u64), 1i64),  // count for ('e', 'll') should be increased by 1.
+                ((2u64, 3u64), -1i64), // count for ('l', 'o') should be decreased by 1.
+                ((4u64, 3u64), 1i64),  // count for ('ll', 'o') should be increased by 1.
             ]
         );
     }
